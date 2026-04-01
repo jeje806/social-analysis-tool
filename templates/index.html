@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>기업별 ESG 평가결과 분석</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; background: #f0f2f5; color: #1a1a2e; }
+
+/* ─── Layout ─── */
+.app-header {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  color: #fff; padding: 16px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+.app-header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+.app-header h1 span { color: #e94560; }
+.header-meta { font-size: 12px; color: #a0aec0; }
+
+.app-body { display: flex; height: calc(100vh - 56px); overflow: hidden; }
+
+/* ─── Sidebar ─── */
+.sidebar {
+  width: 300px; min-width: 240px; background: #fff;
+  border-right: 1px solid #e2e8f0;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.sidebar-header { padding: 16px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+.sidebar-header h3 { font-size: 13px; font-weight: 600; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+.search-box {
+  width: 100%; padding: 8px 12px; border: 1.5px solid #e2e8f0;
+  border-radius: 8px; font-size: 13px; outline: none; transition: border-color 0.2s;
+}
+.search-box:focus { border-color: #0f3460; }
+
+.filter-row { display: flex; gap: 6px; margin-top: 8px; }
+.filter-select {
+  flex: 1; padding: 6px 8px; border: 1.5px solid #e2e8f0;
+  border-radius: 6px; font-size: 12px; outline: none; background: #fff;
+}
+
+.company-list { flex: 1; overflow-y: auto; }
+.company-item {
+  padding: 10px 16px; cursor: pointer; border-bottom: 1px solid #f1f5f9;
+  display: flex; align-items: center; gap: 10px; transition: background 0.15s;
+}
+.company-item:hover { background: #f0f7ff; }
+.company-item.active { background: #eff6ff; border-left: 3px solid #0f3460; }
+.company-name { font-size: 14px; font-weight: 500; flex: 1; }
+.company-grade-badge {
+  font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+  min-width: 32px; text-align: center;
+}
+.grade-A\\+ { background: #dcfce7; color: #15803d; }
+.grade-A { background: #d1fae5; color: #065f46; }
+.grade-B\\+ { background: #dbeafe; color: #1e40af; }
+.grade-B { background: #e0f2fe; color: #0369a1; }
+.grade-C\\+ { background: #fef9c3; color: #854d0e; }
+.grade-C { background: #fef3c7; color: #92400e; }
+.grade-D\\+ { background: #fee2e2; color: #991b1b; }
+.grade-D { background: #fecaca; color: #7f1d1d; }
+.grade-- { background: #f1f5f9; color: #64748b; }
+
+.company-sector { font-size: 11px; color: #94a3b8; }
+
+/* ─── Main Content ─── */
+.main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.welcome-screen {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: #94a3b8; gap: 12px;
+}
+.welcome-screen svg { opacity: 0.3; }
+.welcome-screen h2 { font-size: 20px; color: #64748b; }
+.welcome-screen p { font-size: 14px; }
+
+.company-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ─── Company Header ─── */
+.company-header {
+  background: #fff; padding: 16px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex; align-items: center; gap: 16px;
+}
+.company-title { flex: 1; }
+.company-title h2 { font-size: 22px; font-weight: 700; color: #1e293b; }
+.company-meta { font-size: 13px; color: #64748b; margin-top: 2px; }
+
+.grade-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.grade-pill {
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 20px; font-size: 12px;
+  border: 1px solid #e2e8f0;
+}
+.grade-pill-label { color: #64748b; }
+.grade-pill-value { font-weight: 700; font-size: 14px; }
+
+/* ─── Tabs ─── */
+.tab-nav {
+  background: #fff; border-bottom: 1px solid #e2e8f0;
+  padding: 0 24px; display: flex; gap: 0;
+}
+.tab-btn {
+  padding: 12px 16px; background: none; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 500; color: #64748b;
+  border-bottom: 3px solid transparent; transition: all 0.2s;
+  white-space: nowrap;
+}
+.tab-btn:hover { color: #0f3460; background: #f8fafc; }
+.tab-btn.active { color: #0f3460; border-bottom-color: #0f3460; font-weight: 700; }
+
+.tab-content { flex: 1; overflow-y: auto; }
+.tab-panel { display: none; padding: 24px; }
+.tab-panel.active { display: block; }
+
+/* ─── Cards ─── */
+.card {
+  background: #fff; border-radius: 12px; padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px;
+}
+.card-title { font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.card-title::before { content: ''; display: inline-block; width: 4px; height: 16px; background: #0f3460; border-radius: 2px; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+/* ─── Grade Display ─── */
+.grade-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.grade-box {
+  text-align: center; padding: 16px 8px; border-radius: 10px;
+  border: 1.5px solid #e2e8f0;
+}
+.grade-box-label { font-size: 11px; color: #64748b; margin-bottom: 6px; font-weight: 500; }
+.grade-box-value { font-size: 28px; font-weight: 800; }
+
+.adjustment-alert {
+  background: #fff7ed; border: 1.5px solid #fed7aa; border-radius: 8px;
+  padding: 12px 16px; margin-top: 12px;
+}
+.adjustment-alert-title { font-size: 12px; font-weight: 700; color: #c2410c; margin-bottom: 4px; }
+.adjustment-alert-text { font-size: 13px; color: #7c2d12; }
+
+/* ─── KPI Table ─── */
+.kpi-table { width: 100%; border-collapse: collapse; }
+.kpi-table th { background: #f8fafc; padding: 10px 14px; text-align: left; font-size: 12px; color: #64748b; font-weight: 600; border-bottom: 2px solid #e2e8f0; }
+.kpi-table td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
+.kpi-table tr:last-child td { border-bottom: none; }
+.kpi-table tr:hover td { background: #f8fafc; }
+.kpi-score-bar { display: flex; align-items: center; gap: 8px; }
+.kpi-bar-bg { flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+.kpi-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #0f3460, #e94560); transition: width 0.5s; }
+.kpi-score-num { font-size: 12px; font-weight: 700; color: #475569; min-width: 20px; }
+
+/* ─── Category Sub-indicators ─── */
+.cat-accordion { border: 1.5px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
+.cat-accordion-header {
+  padding: 14px 16px; cursor: pointer; display: flex; align-items: center; gap: 12px;
+  background: #f8fafc; transition: background 0.15s; user-select: none;
+}
+.cat-accordion-header:hover { background: #f0f7ff; }
+.cat-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.cat-accordion-title { flex: 1; font-size: 14px; font-weight: 600; color: #1e293b; }
+.cat-score-summary { font-size: 13px; color: #64748b; }
+.cat-chevron { font-size: 12px; color: #94a3b8; transition: transform 0.2s; }
+.cat-accordion-header.open .cat-chevron { transform: rotate(180deg); }
+.cat-accordion-body { display: none; border-top: 1px solid #e2e8f0; }
+.cat-accordion-body.open { display: block; }
+
+.sub-indicator-row {
+  display: flex; align-items: flex-start; padding: 10px 16px; gap: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.sub-indicator-row:last-child { border-bottom: none; }
+.sub-q-num { font-size: 11px; color: #94a3b8; min-width: 40px; font-weight: 600; }
+.sub-q-text { flex: 1; font-size: 12px; color: #475569; line-height: 1.5; }
+.sub-q-score {
+  font-size: 13px; font-weight: 700; min-width: 28px; text-align: center;
+  padding: 2px 6px; border-radius: 4px;
+}
+.score-na { background: #f1f5f9; color: #94a3b8; }
+.score-0 { background: #fef2f2; color: #dc2626; }
+.score-1 { background: #fef9c3; color: #b45309; }
+.score-2 { background: #dbeafe; color: #1d4ed8; }
+.score-3 { background: #dcfce7; color: #15803d; }
+
+/* ─── 심화평가 ─── */
+.risk-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: 700;
+}
+.risk-none { background: #dcfce7; color: #15803d; }
+.risk-caution { background: #fef9c3; color: #92400e; }
+.risk-medium { background: #fed7aa; color: #c2410c; }
+.risk-high { background: #fecaca; color: #991b1b; }
+
+.risk-summary-card {
+  display: flex; align-items: center; gap: 20px; padding: 16px 20px;
+  border-radius: 10px; border: 1.5px solid #e2e8f0; margin-bottom: 16px;
+}
+.risk-summary-info { flex: 1; }
+.risk-total { font-size: 24px; font-weight: 800; color: #1e293b; }
+.risk-avg-line { font-size: 12px; color: #64748b; margin-top: 2px; }
+.risk-bar-container { flex: 2; }
+.risk-gauge { position: relative; height: 12px; background: #e2e8f0; border-radius: 6px; overflow: visible; }
+.risk-gauge-fill { height: 100%; border-radius: 6px; transition: width 0.5s; }
+.risk-gauge-marker {
+  position: absolute; top: -4px; width: 2px; height: 20px;
+  background: #64748b; border-radius: 1px;
+}
+.risk-gauge-label { font-size: 11px; color: #64748b; margin-top: 4px; display: flex; justify-content: space-between; }
+
+.adv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.adv-table th { background: #f8fafc; padding: 10px 12px; text-align: left; font-size: 12px; color: #64748b; font-weight: 600; border-bottom: 2px solid #e2e8f0; }
+.adv-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: top; line-height: 1.5; }
+.adv-table tr:last-child td { border-bottom: none; }
+.adv-code { font-size: 11px; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: #64748b; font-family: monospace; }
+.adv-deduction { font-weight: 700; color: #dc2626; white-space: nowrap; }
+.detail-toggle { font-size: 11px; color: #0f3460; cursor: pointer; text-decoration: underline; }
+.detail-collapse { display: none; margin-top: 6px; padding: 8px; background: #f8fafc; border-radius: 6px; font-size: 12px; color: #475569; line-height: 1.6; }
+.detail-collapse.open { display: block; }
+
+.no-adv { text-align: center; padding: 40px; color: #94a3b8; }
+.no-adv svg { margin-bottom: 12px; }
+
+/* ─── Chart containers ─── */
+.chart-container { position: relative; height: 280px; }
+.chart-container-sm { position: relative; height: 220px; }
+
+/* ─── Loading ─── */
+.loading { display: flex; align-items: center; justify-content: center; height: 200px; }
+.spinner { width: 32px; height: 32px; border: 3px solid #e2e8f0; border-top-color: #0f3460; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+/* ─── Responsive ─── */
+@media (max-width: 900px) {
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .grade-grid { grid-template-columns: repeat(2, 1fr); }
+  .sidebar { width: 240px; }
+}
+
+.empty-state { text-align: center; padding: 32px; color: #94a3b8; font-size: 14px; }
+.tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: #e0f2fe; color: #0369a1; font-weight: 500; }
+.divider { border: none; border-top: 1px solid #f1f5f9; margin: 16px 0; }
+
+.stat-mini { text-align: center; padding: 12px; border-radius: 8px; background: #f8fafc; }
+.stat-mini-val { font-size: 20px; font-weight: 800; color: #0f3460; }
+.stat-mini-label { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+/* ─── Upload Screen ─── */
+#uploadScreen {
+  position: fixed; inset: 0; z-index: 100;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.upload-box {
+  background: #fff; border-radius: 20px; padding: 40px 48px;
+  max-width: 640px; width: 100%;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+}
+.upload-box h2 { font-size: 22px; font-weight: 800; color: #1e293b; margin-bottom: 6px; }
+.upload-box p { font-size: 14px; color: #64748b; margin-bottom: 28px; }
+.upload-fields { display: flex; flex-direction: column; gap: 16px; margin-bottom: 28px; }
+.upload-field label { display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.upload-field-desc { font-size: 11px; color: #94a3b8; margin-bottom: 6px; }
+.upload-file-input {
+  width: 100%; padding: 10px 14px; border: 2px dashed #cbd5e1;
+  border-radius: 10px; font-size: 13px; color: #475569; cursor: pointer;
+  background: #f8fafc; transition: border-color 0.2s;
+}
+.upload-file-input:hover, .upload-file-input:focus { border-color: #0f3460; outline: none; }
+.upload-btn {
+  width: 100%; padding: 14px; background: linear-gradient(135deg, #0f3460, #e94560);
+  color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 700;
+  cursor: pointer; transition: opacity 0.2s;
+}
+.upload-btn:hover { opacity: 0.9; }
+.upload-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.upload-error { margin-top: 12px; padding: 10px 14px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 13px; color: #dc2626; display: none; }
+.upload-logo { font-size: 28px; font-weight: 900; color: #fff; margin-bottom: 32px; letter-spacing: -1px; }
+.upload-logo span { color: #e94560; }
+</style>
+</head>
+<body>
+
+<!-- Upload Screen -->
+<div id="uploadScreen">
+  <div class="upload-logo">기업별 <span>ESG</span> 평가결과 분석 도구</div>
+  <div class="upload-box">
+    <h2>분석 파일 업로드</h2>
+    <p>아래 3개의 파일을 업로드하면 브라우저에서 바로 분석 결과를 확인할 수 있습니다.</p>
+    <div class="upload-fields">
+      <div class="upload-field">
+        <label>① ESG 등급 파일</label>
+        <div class="upload-field-desc">ESG_등급_날짜.xlsx 형식의 파일</div>
+        <input class="upload-file-input" type="file" id="fileGrade" accept=".xlsx,.xls">
+      </div>
+      <div class="upload-field">
+        <label>② 사회 평가결과 파일</label>
+        <div class="upload-field-desc">ESG_평가점수_날짜.xls 형식의 파일</div>
+        <input class="upload-file-input" type="file" id="fileEval" accept=".xlsx,.xls">
+      </div>
+      <div class="upload-field">
+        <label>③ 심화평가 파일</label>
+        <div class="upload-field-desc">ESG_심화평가_날짜.xls 형식의 파일</div>
+        <input class="upload-file-input" type="file" id="fileAdv" accept=".xlsx,.xls">
+      </div>
+    </div>
+    <button class="upload-btn" id="uploadBtn" onclick="handleUpload()">분석 시작하기</button>
+    <div class="upload-error" id="uploadError"></div>
+  </div>
+</div>
+
+<header class="app-header" style="display:none">
+  <h1>기업별 <span>ESG</span> 평가결과 분석 도구</h1>
+  <div class="header-meta">2025년 평가결과 기준</div>
+</header>
+
+<div class="app-body" style="display:none">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h3>기업 선택</h3>
+      <input class="search-box" type="text" id="searchInput" placeholder="🔍  기업명 검색...">
+      <div class="filter-row">
+        <select class="filter-select" id="sectorFilter">
+          <option value="">전체 업종</option>
+        </select>
+        <select class="filter-select" id="gradeFilter">
+          <option value="">전체 등급</option>
+          <option value="A+">A+</option>
+          <option value="A">A</option>
+          <option value="B+">B+</option>
+          <option value="B">B</option>
+          <option value="C+">C+</option>
+          <option value="C">C</option>
+          <option value="D+">D+</option>
+          <option value="D">D</option>
+        </select>
+      </div>
+    </div>
+    <div class="company-list" id="companyList">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content" id="mainContent">
+    <div class="welcome-screen" id="welcomeScreen">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+      </svg>
+      <h2>기업을 선택하여 ESG 평가결과를 분석하세요</h2>
+      <p>왼쪽 목록에서 분석할 기업을 클릭하세요</p>
+    </div>
+
+    <div class="company-panel" id="companyPanel" style="display:none;">
+      <!-- Company Header -->
+      <div class="company-header">
+        <div class="company-title">
+          <h2 id="panelCompanyName">-</h2>
+          <div class="company-meta" id="panelCompanyMeta">-</div>
+        </div>
+        <div class="grade-pills" id="panelGradePills"></div>
+      </div>
+
+      <!-- Tabs -->
+      <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="tab-grade">📊 ESG 등급 및 등급조정</button>
+        <button class="tab-btn" data-tab="tab-kpi">⭐ 사회 평가 핵심지표</button>
+        <button class="tab-btn" data-tab="tab-cat">📋 대분류별 지표</button>
+        <button class="tab-btn" data-tab="tab-adv">⚠️ 심화평가 결과</button>
+      </nav>
+
+      <div class="tab-content">
+        <!-- Tab 1: ESG 등급 -->
+        <div class="tab-panel active" id="tab-grade">
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-title">ESG 등급 현황</div>
+              <div class="grade-grid" id="gradeBoxes"></div>
+              <div id="gradeAdjustments"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">등급 레이더 차트</div>
+              <div class="chart-container">
+                <canvas id="gradeRadarChart"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">사회 평가 점수 현황</div>
+            <div class="grid-3" id="scoreSummaryGrid"></div>
+          </div>
+        </div>
+
+        <!-- Tab 2: 사회 평가 핵심지표 -->
+        <div class="tab-panel" id="tab-kpi">
+          <div class="card">
+            <div class="card-title">사회 평가 핵심지표 (13개)</div>
+            <table class="kpi-table" id="kpiTable">
+              <thead>
+                <tr>
+                  <th style="width:180px">핵심지표</th>
+                  <th>평가 결과</th>
+                  <th style="width:200px">수준</th>
+                </tr>
+              </thead>
+              <tbody id="kpiTableBody"></tbody>
+            </table>
+          </div>
+          <div class="card">
+            <div class="card-title">핵심지표 달성 수준 분포</div>
+            <div class="chart-container">
+              <canvas id="kpiBarChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: 대분류별 지표 -->
+        <div class="tab-panel" id="tab-cat">
+          <div class="card">
+            <div class="card-title">대분류별 점수 요약</div>
+            <div class="chart-container">
+              <canvas id="catRadarChart"></canvas>
+            </div>
+          </div>
+          <div id="catAccordions"></div>
+        </div>
+
+        <!-- Tab 4: 심화평가 -->
+        <div class="tab-panel" id="tab-adv">
+          <div class="card" id="advSummaryCard">
+            <div class="card-title">심화평가 위험 수준</div>
+            <div id="advRiskDisplay"></div>
+          </div>
+          <div class="card" id="advDetailCard">
+            <div class="card-title">심화평가 감점 내역</div>
+            <div id="advTableContainer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ─── State ───
+let allCompanies = [];
+let currentCompany = null;
+let charts = {};
+
+// ─── Init ───
+document.addEventListener('DOMContentLoaded', () => {
+  setupTabs();
+  setupSearch();
+});
+
+// ─── Upload ───
+async function handleUpload() {
+  const gradeFile = document.getElementById('fileGrade').files[0];
+  const evalFile  = document.getElementById('fileEval').files[0];
+  const advFile   = document.getElementById('fileAdv').files[0];
+  const errDiv    = document.getElementById('uploadError');
+  const btn       = document.getElementById('uploadBtn');
+
+  errDiv.style.display = 'none';
+  if (!gradeFile || !evalFile || !advFile) {
+    errDiv.textContent = '3개 파일을 모두 선택해주세요.';
+    errDiv.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '업로드 중...';
+
+  try {
+    const form = new FormData();
+    form.append('grade_file', gradeFile);
+    form.append('eval_file',  evalFile);
+    form.append('adv_file',   advFile);
+
+    const res = await fetch('/api/upload', { method: 'POST', body: form });
+    const json = await res.json();
+
+    if (!res.ok) {
+      throw new Error(json.error || '업로드 실패');
+    }
+
+    // Success: hide upload screen, show app
+    document.getElementById('uploadScreen').style.display = 'none';
+    document.querySelector('.app-header').style.display = '';
+    document.querySelector('.app-body').style.display = 'flex';
+    await loadCompanies();
+  } catch(e) {
+    errDiv.textContent = '오류: ' + e.message;
+    errDiv.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '분석 시작하기';
+  }
+}
+
+// ─── Companies ───
+async function loadCompanies() {
+  try {
+    const res = await fetch('/api/companies');
+    allCompanies = await res.json();
+    populateSectorFilter();
+    renderCompanyList(allCompanies);
+  } catch (e) {
+    document.getElementById('companyList').innerHTML = '<div class="empty-state">데이터 로딩 실패</div>';
+  }
+}
+
+function populateSectorFilter() {
+  const sectors = [...new Set(allCompanies.map(c => c.sector).filter(Boolean))].sort();
+  const sel = document.getElementById('sectorFilter');
+  sectors.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    sel.appendChild(opt);
+  });
+  sel.onchange = filterCompanies;
+  document.getElementById('gradeFilter').onchange = filterCompanies;
+}
+
+function filterCompanies() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const sector = document.getElementById('sectorFilter').value;
+  const grade = document.getElementById('gradeFilter').value;
+
+  const filtered = allCompanies.filter(c =>
+    (!search || c.name.includes(search)) &&
+    (!sector || c.sector === sector) &&
+    (!grade || c.social_grade === grade || c.total_grade === grade)
+  );
+  renderCompanyList(filtered);
+}
+
+function renderCompanyList(companies) {
+  const list = document.getElementById('companyList');
+  if (!companies.length) {
+    list.innerHTML = '<div class="empty-state">검색 결과 없음</div>';
+    return;
+  }
+  list.innerHTML = companies.map(c => `
+    <div class="company-item ${currentCompany === c.code ? 'active' : ''}"
+         onclick="selectCompany('${c.code}', '${c.name.replace(/'/g, "\\'")}')"
+         data-code="${c.code}">
+      <div>
+        <div class="company-name">${c.name}</div>
+        <div class="company-sector">${c.sector || ''}</div>
+      </div>
+      <span class="company-grade-badge grade-${(c.social_grade||'-').replace('+','\\+')}">${c.social_grade || '-'}</span>
+    </div>
+  `).join('');
+}
+
+function setupSearch() {
+  document.getElementById('searchInput').addEventListener('input', filterCompanies);
+}
+
+// ─── Select Company ───
+async function selectCompany(code, name) {
+  currentCompany = code;
+
+  // Update active state in list
+  document.querySelectorAll('.company-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.code === code);
+  });
+
+  document.getElementById('welcomeScreen').style.display = 'none';
+  document.getElementById('companyPanel').style.display = 'flex';
+  document.getElementById('panelCompanyName').textContent = name;
+  document.getElementById('panelCompanyMeta').textContent = '데이터 로딩 중...';
+
+  // Reset to first tab
+  switchTab('tab-grade');
+
+  try {
+    const res = await fetch(`/api/company/${code}`);
+    const data = await res.json();
+    renderCompanyData(data);
+  } catch(e) {
+    document.getElementById('panelCompanyMeta').textContent = '데이터 로딩 실패';
+  }
+}
+
+// ─── Render Company Data ───
+function renderCompanyData(data) {
+  const { name, sector, group, grades, kpi, categories, social_summary, adv_eval } = data;
+
+  document.getElementById('panelCompanyName').textContent = name;
+  document.getElementById('panelCompanyMeta').textContent = [sector, group && group !== '-' ? `(${group})` : ''].filter(Boolean).join(' ');
+
+  renderGradePills(grades);
+  renderTab1(grades, social_summary);
+  renderTab2(kpi);
+  renderTab3(categories);
+  renderTab4(adv_eval);
+}
+
+function gradeColor(g) {
+  const map = {
+    'A+': '#15803d', 'A': '#065f46',
+    'B+': '#1e40af', 'B': '#0369a1',
+    'C+': '#854d0e', 'C': '#92400e',
+    'D+': '#991b1b', 'D': '#7f1d1d',
+    '-': '#64748b'
+  };
+  return map[g] || '#64748b';
+}
+
+function gradeBg(g) {
+  const map = {
+    'A+': '#dcfce7', 'A': '#d1fae5',
+    'B+': '#dbeafe', 'B': '#e0f2fe',
+    'C+': '#fef9c3', 'C': '#fef3c7',
+    'D+': '#fee2e2', 'D': '#fecaca',
+    '-': '#f1f5f9'
+  };
+  return map[g] || '#f1f5f9';
+}
+
+function gradeToNum(g) {
+  const map = {'A+':8,'A':7,'B+':6,'B':5,'C+':4,'C':3,'D+':2,'D':1,'-':0};
+  return map[g] || 0;
+}
+
+// ─── Tab 1: ESG 등급 ───
+function renderGradePills(grades) {
+  const pills = document.getElementById('panelGradePills');
+  const labels = {env:'환경(E)', social:'사회(S)', gov:'지배구조(G)', total:'종합(ESG)'};
+  pills.innerHTML = Object.entries(labels).map(([k,l]) => {
+    const g = grades[k] || '-';
+    return `<div class="grade-pill" style="background:${gradeBg(g)};border-color:${gradeBg(g)}">
+      <span class="grade-pill-label">${l}</span>
+      <span class="grade-pill-value" style="color:${gradeColor(g)}">${g}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderTab1(grades, summary) {
+  // Grade boxes
+  const gradeBoxes = document.getElementById('gradeBoxes');
+  const labels = {env:'환경 (E)', social:'사회 (S)', gov:'지배구조 (G)', total:'종합 (ESG)'};
+  gradeBoxes.innerHTML = Object.entries(labels).map(([k,l]) => {
+    const g = grades[k] || '-';
+    return `<div class="grade-box" style="background:${gradeBg(g)};border-color:${gradeBg(g)}">
+      <div class="grade-box-label">${l}</div>
+      <div class="grade-box-value" style="color:${gradeColor(g)}">${g}</div>
+    </div>`;
+  }).join('');
+
+  // Adjustments
+  const adjDiv = document.getElementById('gradeAdjustments');
+  const adjItems = [
+    {label:'E', adj: grades.adj_e, reason: grades.reason_e},
+    {label:'S', adj: grades.adj_s, reason: grades.reason_s},
+    {label:'G', adj: grades.adj_g, reason: grades.reason_g},
+    {label:'ESG', adj: grades.adj_esg, reason: grades.reason_esg},
+  ].filter(x => x.adj);
+
+  if (adjItems.length) {
+    adjDiv.innerHTML = adjItems.map(a => `
+      <div class="adjustment-alert" style="margin-top:10px">
+        <div class="adjustment-alert-title">⚠️ ${a.label} 등급 조정 (${a.adj})</div>
+        <div class="adjustment-alert-text">${a.reason || '-'}</div>
+      </div>
+    `).join('');
+  } else {
+    adjDiv.innerHTML = '<div style="margin-top:12px;font-size:13px;color:#64748b;text-align:center">등급 조정 내역 없음</div>';
+  }
+
+  // Radar chart
+  destroyChart('gradeRadarChart');
+  const ctx = document.getElementById('gradeRadarChart').getContext('2d');
+  charts['gradeRadarChart'] = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: ['환경(E)', '사회(S)', '지배구조(G)'],
+      datasets: [{
+        label: '등급 수준',
+        data: [gradeToNum(grades.env), gradeToNum(grades.social), gradeToNum(grades.gov)],
+        backgroundColor: 'rgba(15,52,96,0.15)',
+        borderColor: '#0f3460',
+        pointBackgroundColor: '#e94560',
+        pointRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        r: {
+          min: 0, max: 8,
+          ticks: {
+            callback: v => {
+              const m = {8:'A+',7:'A',6:'B+',5:'B',4:'C+',3:'C',2:'D+',1:'D',0:'-'};
+              return m[v] || '';
+            },
+            stepSize: 1, font: {size: 10}
+          },
+          pointLabels: {font: {size: 13, weight: 'bold'}},
+        }
+      },
+      plugins: {legend: {display: false}}
+    }
+  });
+
+  // Score summary
+  const grid = document.getElementById('scoreSummaryGrid');
+  const items = [
+    {label:'기본평가 점수', val: summary['기본평가'], unit:'점'},
+    {label:'감점', val: summary['감점'], unit:'점'},
+    {label:'기본평가 백분위', val: summary['기본평가(백분위)'], unit:'%'},
+    {label:'감점 백분위', val: summary['감점(백분위)'], unit:'%'},
+    {label:'기본평가 환산', val: summary['기본평가(환산)'], unit:'점'},
+    {label:'감점 환산', val: summary['감점(환산)'], unit:'점'},
+  ];
+  grid.innerHTML = items.map(i => `
+    <div class="stat-mini">
+      <div class="stat-mini-val">${i.val !== null && i.val !== undefined ? Number(i.val).toFixed(1) : '-'}${i.val !== null ? i.unit : ''}</div>
+      <div class="stat-mini-label">${i.label}</div>
+    </div>
+  `).join('');
+}
+
+// ─── Tab 2: 핵심지표 ───
+function renderTab2(kpi) {
+  const tbody = document.getElementById('kpiTableBody');
+  tbody.innerHTML = kpi.map(k => {
+    const score = k.score;
+    const maxScore = k.max_score;
+    const pct = score !== null ? Math.round((score / maxScore) * 100) : 0;
+    return `
+      <tr>
+        <td><strong>${k.name}</strong></td>
+        <td>${k.label !== '해당없음' ? k.label : '<span style="color:#94a3b8">해당없음</span>'}</td>
+        <td>
+          <div class="kpi-score-bar">
+            <div class="kpi-bar-bg">
+              <div class="kpi-bar-fill" style="width:${pct}%"></div>
+            </div>
+            <div class="kpi-score-num">${score !== null ? score + '/' + maxScore : '-'}</div>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  // KPI Bar Chart
+  destroyChart('kpiBarChart');
+  const ctx = document.getElementById('kpiBarChart').getContext('2d');
+  const validKpi = kpi.filter(k => k.score !== null);
+  charts['kpiBarChart'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: validKpi.map(k => k.name.length > 12 ? k.name.substring(0, 12) + '…' : k.name),
+      datasets: [{
+        label: '달성 점수',
+        data: validKpi.map(k => k.score),
+        backgroundColor: validKpi.map(k => {
+          const pct = k.score / k.max_score;
+          if (pct >= 0.75) return '#22c55e';
+          if (pct >= 0.5) return '#3b82f6';
+          if (pct > 0) return '#f59e0b';
+          return '#ef4444';
+        }),
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {legend: {display: false}},
+      scales: {
+        y: {beginAtZero: true, title: {display: true, text: '점수'}},
+        x: {ticks: {font: {size: 11}}}
+      }
+    }
+  });
+}
+
+// ─── Tab 3: 대분류별 ───
+function renderTab3(categories) {
+  // categories is now an array [{name, questions, total, answered, color}, ...]
+  destroyChart('catRadarChart');
+  const ctx = document.getElementById('catRadarChart').getContext('2d');
+  charts['catRadarChart'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: categories.map(c => c.name.length > 10 ? c.name.substring(0,10)+'…' : c.name),
+      datasets: [{
+        label: '합계 점수',
+        data: categories.map(c => c.total),
+        backgroundColor: categories.map(c => c.color + 'cc'),
+        borderColor: categories.map(c => c.color),
+        borderWidth: 2,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {display: false},
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const cat = categories[ctx.dataIndex];
+              return `${cat.total.toFixed(1)}점 (${cat.answered}/${cat.total_questions}문항 응답)`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {beginAtZero: true, title: {display: true, text: '점수'}},
+        x: {ticks: {font: {size: 11}}}
+      }
+    }
+  });
+
+  // Accordions
+  const container = document.getElementById('catAccordions');
+  container.innerHTML = categories.map((cat, i) => {
+    const summaryText = `${cat.answered}/${cat.total_questions}개 응답 | 합계: ${cat.total.toFixed(1)}점`;
+    return `
+      <div class="cat-accordion">
+        <div class="cat-accordion-header" onclick="toggleAccordion(this)">
+          <div class="cat-dot" style="background:${cat.color}"></div>
+          <div class="cat-accordion-title">${cat.name}</div>
+          <div class="cat-score-summary">${summaryText}</div>
+          <div class="cat-chevron">▼</div>
+        </div>
+        <div class="cat-accordion-body">
+          ${cat.questions.map(q => {
+            const s = q.score;
+            let sClass;
+            if (s === null) sClass = 'score-na';
+            else if (s === 0) sClass = 'score-0';
+            else if (s <= 2) sClass = 'score-1';
+            else if (s <= 4) sClass = 'score-2';
+            else sClass = 'score-3';
+            return `
+              <div class="sub-indicator-row">
+                <div class="sub-q-num">Q${q.q_num}</div>
+                <div class="sub-q-text">${q.text || '문항 ' + q.q_num}</div>
+                <div class="sub-q-score ${sClass}">${s !== null ? s : 'N/A'}</div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleAccordion(header) {
+  header.classList.toggle('open');
+  const body = header.nextElementSibling;
+  body.classList.toggle('open');
+}
+
+// ─── Tab 4: 심화평가 ───
+function renderTab4(advEval) {
+  const riskDiv = document.getElementById('advRiskDisplay');
+  const tableDiv = document.getElementById('advTableContainer');
+  const total = advEval.total || 0;
+  const avg = advEval.avg_deduction || 0;
+  const risk = advEval.risk || '위험 없음';
+  const items = advEval.items || [];
+
+  const riskClasses = {
+    '위험 없음': 'risk-none',
+    '위험 유의': 'risk-caution',
+    '위험': 'risk-medium',
+    '위험 높음': 'risk-high'
+  };
+  const riskIcons = {
+    '위험 없음': '✅',
+    '위험 유의': '⚠️',
+    '위험': '🔶',
+    '위험 높음': '🔴'
+  };
+
+  const pct = avg > 0 ? Math.min((total / (avg * 2)) * 100, 100) : (total > 0 ? 100 : 0);
+  const avgPct = avg > 0 ? Math.min(50, 100) : 50;
+
+  riskDiv.innerHTML = `
+    <div class="risk-summary-card">
+      <div class="risk-summary-info">
+        <div style="margin-bottom:8px">
+          <span class="risk-badge ${riskClasses[risk]}">${riskIcons[risk]} ${risk}</span>
+        </div>
+        <div class="risk-total">${total.toFixed(1)}점</div>
+        <div class="risk-avg-line">전체 평균 감점: ${avg.toFixed(1)}점</div>
+      </div>
+      <div class="risk-bar-container">
+        <div class="risk-gauge">
+          <div class="risk-gauge-fill" style="width:${pct}%; background:${
+            risk === '위험 없음' ? '#22c55e' :
+            risk === '위험 유의' ? '#eab308' :
+            risk === '위험' ? '#f97316' : '#ef4444'
+          }"></div>
+          <div class="risk-gauge-marker" style="left:50%"></div>
+        </div>
+        <div class="risk-gauge-label">
+          <span>0점</span><span>↑ 평균(${avg.toFixed(1)}점)</span><span>${(avg*2).toFixed(1)}점+</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  if (!items.length) {
+    tableDiv.innerHTML = `
+      <div class="no-adv">
+        <div style="font-size:40px;margin-bottom:8px">✅</div>
+        <div style="font-size:16px;font-weight:600;color:#15803d">심화평가 감점 내역 없음</div>
+        <div style="font-size:13px;color:#94a3b8;margin-top:4px">해당 기업은 심화평가에서 감점 사항이 없습니다</div>
+      </div>`;
+    return;
+  }
+
+  tableDiv.innerHTML = `
+    <table class="adv-table">
+      <thead>
+        <tr>
+          <th style="width:90px">코드</th>
+          <th>감점 문항</th>
+          <th>사건 유형</th>
+          <th style="width:80px">감점</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items.map((item, i) => `
+          <tr>
+            <td><span class="adv-code">${item.code || '-'}</span></td>
+            <td>
+              <div style="font-size:13px">${item.question}</div>
+              ${item.details ? `
+                <div class="detail-toggle" onclick="toggleDetail(${i})">상세 내용 보기 ▼</div>
+                <div class="detail-collapse" id="detail-${i}">${item.details.replace(/\n/g, '<br>')}</div>
+              ` : ''}
+            </td>
+            <td style="font-size:13px">${item.incident || '-'}</td>
+            <td><span class="adv-deduction">-${item.deduction.toFixed(1)}점</span></td>
+          </tr>
+        `).join('')}
+      </tbody>
+      <tfoot>
+        <tr style="background:#fef2f2">
+          <td colspan="3" style="padding:10px 12px;font-weight:700;color:#991b1b">총 감점</td>
+          <td style="padding:10px 12px"><span class="adv-deduction">-${total.toFixed(1)}점</span></td>
+        </tr>
+      </tfoot>
+    </table>
+  `;
+}
+
+function toggleDetail(i) {
+  const el = document.getElementById(`detail-${i}`);
+  el.classList.toggle('open');
+  const toggle = el.previousElementSibling;
+  toggle.textContent = el.classList.contains('open') ? '상세 내용 접기 ▲' : '상세 내용 보기 ▼';
+}
+
+// ─── Tabs ───
+function setupTabs() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+}
+
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === tabId));
+}
+
+// ─── Chart helpers ───
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+</script>
+</body>
+</html>
