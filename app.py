@@ -83,165 +83,174 @@ SESSION_DATA = {}  # { session_id: { 'years': {...}, 'companies': {...} } }
 
 # ── 핵심 파싱 함수 ────────────────────────────────────────────────────────────
 
+def _safe_str(val, default='-'):
+    return str(val).strip() if not pd.isna(val) else default
+
+def _safe_none(val):
+    return str(val).strip() if not pd.isna(val) else None
+
 def parse_year_data(year, grade_bytes, eval_bytes, adv_bytes, result):
     """단일 연도 파일 3개를 파싱해 result dict에 추가한다."""
 
     result['years'][year] = {}
 
-    # --- 1. ESG 등급 ---
+    # --- 1. ESG 등급 (벡터화) ---
     df_g = pd.read_excel(io.BytesIO(grade_bytes))
-    df_g = df_g[df_g['기업코드'].notna() & df_g['기업명'].notna()]
-    for _, row in df_g.iterrows():
-        code = str(int(row['기업코드']))
-        name = str(row['기업명']).strip()
-        if code not in result['companies']:
-            result['companies'][code] = {'name': name, 'code': code}
+    df_g = df_g[df_g['기업코드'].notna() & df_g['기업명'].notna()].copy()
+    df_g['_code'] = df_g['기업코드'].apply(lambda x: str(int(x)))
 
-    result['years'][year]['grades'] = {}
-    for _, row in df_g.iterrows():
-        if pd.isna(row['기업코드']):
-            continue
-        code = str(int(row['기업코드']))
-        result['years'][year]['grades'][code] = {
-            'env':        str(row['환경등급'])     if not pd.isna(row.get('환경등급', None))     else '-',
-            'social':     str(row['사회등급'])     if not pd.isna(row.get('사회등급', None))     else '-',
-            'gov':        str(row['지배구조등급'])  if not pd.isna(row.get('지배구조등급', None))  else '-',
-            'total':      str(row['전체등급'])     if not pd.isna(row.get('전체등급', None))     else '-',
-            'adj_e':      str(row['E 등급조정'])   if not pd.isna(row.get('E 등급조정', None))   else None,
-            'adj_s':      str(row['S 등급조정'])   if not pd.isna(row.get('S 등급조정', None))   else None,
-            'adj_g':      str(row['G 등급조정'])   if not pd.isna(row.get('G 등급조정', None))   else None,
-            'adj_esg':    str(row['ESG 등급조정']) if not pd.isna(row.get('ESG 등급조정', None)) else None,
-            'reason_e':   str(row['E 조정사유'])   if not pd.isna(row.get('E 조정사유', None))   else None,
-            'reason_s':   str(row['S 조정사유'])   if not pd.isna(row.get('S 조정사유', None))   else None,
-            'reason_g':   str(row['G 조정사유'])   if not pd.isna(row.get('G 조정사유', None))   else None,
-            'reason_esg': str(row['ESG 조정사유']) if not pd.isna(row.get('ESG 조정사유', None)) else None,
-        }
+    for row in df_g[['_code', '기업명']].itertuples(index=False):
+        if row._code not in result['companies']:
+            result['companies'][row._code] = {'name': str(row[1]).strip(), 'code': row._code}
 
-    # --- 2. 사회 평가결과 ---
+    def _col(df, name, default='-'):
+        return df[name].apply(lambda x: _safe_str(x, default)) if name in df.columns else pd.Series(default, index=df.index)
+    def _col_none(df, name):
+        return df[name].apply(_safe_none) if name in df.columns else pd.Series(None, index=df.index)
+
+    grades_df = pd.DataFrame({
+        'code':       df_g['_code'],
+        'env':        _col(df_g, '환경등급'),
+        'social':     _col(df_g, '사회등급'),
+        'gov':        _col(df_g, '지배구조등급'),
+        'total':      _col(df_g, '전체등급'),
+        'adj_e':      _col_none(df_g, 'E 등급조정'),
+        'adj_s':      _col_none(df_g, 'S 등급조정'),
+        'adj_g':      _col_none(df_g, 'G 등급조정'),
+        'adj_esg':    _col_none(df_g, 'ESG 등급조정'),
+        'reason_e':   _col_none(df_g, 'E 조정사유'),
+        'reason_s':   _col_none(df_g, 'S 조정사유'),
+        'reason_g':   _col_none(df_g, 'G 조정사유'),
+        'reason_esg': _col_none(df_g, 'ESG 조정사유'),
+    })
+    result['years'][year]['grades'] = {
+        r['code']: {k: v for k, v in r.items() if k != 'code'}
+        for r in grades_df.to_dict('records')
+    }
+
+    # --- 2. 사회 평가결과 (벡터화) ---
     df_raw = pd.read_excel(io.BytesIO(eval_bytes), header=None)
 
-    q_col_map = {}
+    # 헤더 3행에서 컬럼 매핑 구성
+    row0 = df_raw.iloc[0]
+    row1 = df_raw.iloc[1]
+    row2 = df_raw.iloc[2]
+
+    q_col_map  = {}
     q_text_map = {}
     cat_col_map = {}
+    score_col_map = {}
     current_cat = None
-    for col_idx in range(len(df_raw.columns)):
-        cat_val   = df_raw.iloc[0, col_idx]
-        q_num_val = df_raw.iloc[1, col_idx]
-        q_text_val = df_raw.iloc[2, col_idx]
-        if not pd.isna(cat_val) and str(cat_val) not in ('nan', ''):
+    SCORE_LABELS = {'기본평가', '감점', '기본평가(백분위)', '감점(백분위)', '기본평가(환산)', '감점(환산)'}
+
+    for ci in range(len(df_raw.columns)):
+        cat_val = row0.iloc[ci]
+        if not pd.isna(cat_val) and str(cat_val).strip() not in ('nan', ''):
             current_cat = str(cat_val).strip()
-        if not pd.isna(q_num_val):
+            if str(cat_val).strip() in SCORE_LABELS:
+                score_col_map[str(cat_val).strip()] = ci
+                continue
+        q_val = row1.iloc[ci]
+        if not pd.isna(q_val):
             try:
-                q_num = int(float(q_num_val))
-                q_col_map[q_num] = col_idx
-                q_text_map[q_num] = str(q_text_val).strip() if not pd.isna(q_text_val) else ''
+                q_num = int(float(q_val))
+                q_col_map[q_num] = ci
+                q_text_map[q_num] = str(row2.iloc[ci]).strip() if not pd.isna(row2.iloc[ci]) else ''
                 if current_cat:
-                    cat_col_map.setdefault(current_cat, []).append(col_idx)
+                    cat_col_map.setdefault(current_cat, []).append(ci)
             except (ValueError, TypeError):
                 pass
 
-    result['years'][year]['q_col_map']  = q_col_map
-    result['years'][year]['q_text_map'] = q_text_map
+    result['years'][year]['q_col_map']   = q_col_map
+    result['years'][year]['q_text_map']  = q_text_map
     result['years'][year]['cat_col_map'] = cat_col_map
 
-    score_cols = {}
-    for col_idx in range(len(df_raw.columns)):
-        val = df_raw.iloc[0, col_idx]
-        if not pd.isna(val):
-            label = str(val).strip()
-            if label in ('기본평가', '감점', '기본평가(백분위)', '감점(백분위)', '기본평가(환산)', '감점(환산)'):
-                score_cols[label] = col_idx
+    # 데이터 행만 슬라이스 (행 3부터)
+    df_data = df_raw.iloc[3:].copy()
+    df_data = df_data[df_data.iloc[:, 0].notna() & df_data.iloc[:, 1].notna()]
+
+    # 기업 코드 벡터 변환
+    def to_code(x):
+        try: return str(int(float(x)))
+        except: return None
+    df_data['_code'] = df_data.iloc[:, 1].apply(to_code)
+    df_data = df_data[df_data['_code'].notna()]
+
+    # 문항 점수 컬럼 일괄 추출
+    q_cols  = list(q_col_map.keys())
+    q_cidxs = [q_col_map[q] for q in q_cols]
+
+    # 숫자 변환: '-' → NaN → None
+    score_block = df_data.iloc[:, q_cidxs].copy()
+    score_block = score_block.replace('-', float('nan'))
+    score_block = score_block.apply(pd.to_numeric, errors='coerce')
+
+    # summary 컬럼 일괄 추출
+    sum_labels = list(score_col_map.keys())
+    sum_cidxs  = [score_col_map[l] for l in sum_labels]
+    sum_block  = df_data.iloc[:, sum_cidxs].copy().apply(pd.to_numeric, errors='coerce')
 
     social_scores = {}
-    for row_idx in range(3, len(df_raw)):
-        name_val = df_raw.iloc[row_idx, 0]
-        code_val = df_raw.iloc[row_idx, 1]
-        if pd.isna(name_val) or pd.isna(code_val):
-            continue
-        try:
-            code = str(int(float(code_val)))
-        except (ValueError, TypeError):
-            continue
+    codes   = df_data['_code'].tolist()
+    names   = df_data.iloc[:, 0].astype(str).str.strip().tolist()
+    sectors = df_data.iloc[:, 3].fillna('').astype(str).str.strip().tolist()
+    groups  = df_data.iloc[:, 4].fillna('').astype(str).str.strip().tolist()
 
-        name   = str(name_val).strip()
-        sector = str(df_raw.iloc[row_idx, 3]).strip() if not pd.isna(df_raw.iloc[row_idx, 3]) else ''
-        group  = str(df_raw.iloc[row_idx, 4]).strip() if not pd.isna(df_raw.iloc[row_idx, 4]) else ''
+    score_arr = score_block.values  # numpy array - 빠름
+    sum_arr   = sum_block.values
 
-        q_scores = {}
-        for q_num, col_idx in q_col_map.items():
-            raw_val = df_raw.iloc[row_idx, col_idx]
-            if pd.isna(raw_val) or str(raw_val).strip() == '-':
-                q_scores[q_num] = None
-            else:
-                try:
-                    q_scores[q_num] = float(raw_val)
-                except (ValueError, TypeError):
-                    q_scores[q_num] = None
-
-        summary_scores = {}
-        for label, col_idx in score_cols.items():
-            raw_val = df_raw.iloc[row_idx, col_idx]
-            try:
-                summary_scores[label] = float(raw_val) if not pd.isna(raw_val) else None
-            except (ValueError, TypeError):
-                summary_scores[label] = None
-
+    for i, code in enumerate(codes):
+        q_scores = {q_cols[j]: (None if pd.isna(score_arr[i, j]) else float(score_arr[i, j]))
+                    for j in range(len(q_cols))}
+        summary  = {sum_labels[j]: (None if pd.isna(sum_arr[i, j]) else float(sum_arr[i, j]))
+                    for j in range(len(sum_labels))}
         social_scores[code] = {
-            'name': name, 'sector': sector, 'group': group,
-            'q_scores': q_scores, 'summary': summary_scores,
+            'name': names[i], 'sector': sectors[i], 'group': groups[i],
+            'q_scores': q_scores, 'summary': summary,
         }
         if code not in result['companies']:
-            result['companies'][code] = {'name': name, 'code': code}
+            result['companies'][code] = {'name': names[i], 'code': code}
 
     result['years'][year]['social_scores'] = social_scores
 
-    # --- 3. 심화평가 (HTML .xls) ---
+    # --- 3. 심화평가 (벡터화) ---
     try:
-        dfs = pd.read_html(io.BytesIO(adv_bytes))
-        df_adv = dfs[0]
+        df_adv = pd.read_html(io.BytesIO(adv_bytes))[0]
 
-        adv_by_company  = {}
-        total_deductions = {}
-        for _, row in df_adv.iterrows():
-            try:
-                code = str(int(float(row['기업코드'])))
-            except (ValueError, TypeError):
-                continue
-            name      = str(row['기업명']).strip()
-            q_text    = str(row['문항']).strip()            if not pd.isna(row.get('문항'))          else ''
-            incident  = str(row['사건']).strip()            if not pd.isna(row.get('사건'))          else ''
-            details   = str(row['과정 또는 결과']).strip()  if not pd.isna(row.get('과정 또는 결과')) else ''
-            deduction = float(row['감점'])                  if not pd.isna(row.get('감점'))          else 0.0
+        df_adv['_code'] = df_adv['기업코드'].apply(to_code)
+        df_adv = df_adv[df_adv['_code'].notna()]
+        df_adv['감점'] = pd.to_numeric(df_adv['감점'], errors='coerce').fillna(0.0)
+        if '과정 또는 결과' not in df_adv.columns:
+            df_adv['과정 또는 결과'] = ''
+        if '심화평가코드' not in df_adv.columns:
+            df_adv['심화평가코드'] = ''
 
+        adv_by_company = {}
+        for row in df_adv.itertuples(index=False):
+            code = row._code
             if code not in adv_by_company:
-                adv_by_company[code]   = {'name': name, 'items': [], 'total': 0.0}
-                total_deductions[code] = 0.0
-
+                adv_by_company[code] = {'name': str(row[df_adv.columns.get_loc('기업명')]), 'items': [], 'total': 0.0}
+            ded = float(row[df_adv.columns.get_loc('감점')])
             adv_by_company[code]['items'].append({
-                'code':      str(row.get('심화평가코드', '')),
-                'question':  q_text,
-                'incident':  incident,
-                'details':   details,
-                'deduction': deduction,
+                'code':      str(row[df_adv.columns.get_loc('심화평가코드')]),
+                'question':  str(row[df_adv.columns.get_loc('문항')]),
+                'incident':  str(row[df_adv.columns.get_loc('사건')]),
+                'details':   str(row[df_adv.columns.get_loc('과정 또는 결과')]),
+                'deduction': ded,
             })
-            adv_by_company[code]['total'] += deduction
-            total_deductions[code] = adv_by_company[code]['total']
+            adv_by_company[code]['total'] += ded
 
-        deduction_values = [v for v in total_deductions.values() if v > 0]
-        avg_deduction    = sum(deduction_values) / len(deduction_values) if deduction_values else 0
+        deduction_values = [v['total'] for v in adv_by_company.values() if v['total'] > 0]
+        avg_deduction = sum(deduction_values) / len(deduction_values) if deduction_values else 0
 
-        for code in adv_by_company:
-            total = adv_by_company[code]['total']
-            if total == 0:
-                risk = '위험 없음'
-            elif total > avg_deduction:
-                risk = '위험 높음'
-            elif abs(total - avg_deduction) <= avg_deduction * 0.05:
-                risk = '위험'
-            else:
-                risk = '위험 유의'
-            adv_by_company[code]['risk']          = risk
-            adv_by_company[code]['avg_deduction'] = avg_deduction
+        for code, entry in adv_by_company.items():
+            t = entry['total']
+            if t == 0:                                    risk = '위험 없음'
+            elif t > avg_deduction:                       risk = '위험 높음'
+            elif abs(t - avg_deduction) <= avg_deduction * 0.05: risk = '위험'
+            else:                                         risk = '위험 유의'
+            entry['risk'] = risk
+            entry['avg_deduction'] = avg_deduction
 
         result['years'][year]['adv_eval']      = adv_by_company
         result['years'][year]['avg_deduction'] = avg_deduction
