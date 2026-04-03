@@ -81,10 +81,12 @@ CORE_KPI = [
 SESSION_DATA = {}  # { session_id: { 'years': {...}, 'companies': {...} } }
 
 
-# ── 핵심 파싱 함수 (로직 100% 동일, 파일경로 → BytesIO로만 변경) ──────────────────
+# ── 핵심 파싱 함수 ────────────────────────────────────────────────────────────
 
-def parse_uploaded_files(grade_bytes, eval_bytes, adv_bytes):
-    result = {'years': {}, 'companies': {}}
+def parse_year_data(year, grade_bytes, eval_bytes, adv_bytes, result):
+    """단일 연도 파일 3개를 파싱해 result dict에 추가한다."""
+
+    result['years'][year] = {}
 
     # --- 1. ESG 등급 ---
     df_g = pd.read_excel(io.BytesIO(grade_bytes))
@@ -95,13 +97,12 @@ def parse_uploaded_files(grade_bytes, eval_bytes, adv_bytes):
         if code not in result['companies']:
             result['companies'][code] = {'name': name, 'code': code}
 
-    result['years']['2025'] = {}
-    result['years']['2025']['grades'] = {}
+    result['years'][year]['grades'] = {}
     for _, row in df_g.iterrows():
         if pd.isna(row['기업코드']):
             continue
         code = str(int(row['기업코드']))
-        result['years']['2025']['grades'][code] = {
+        result['years'][year]['grades'][code] = {
             'env':        str(row['환경등급'])     if not pd.isna(row.get('환경등급', None))     else '-',
             'social':     str(row['사회등급'])     if not pd.isna(row.get('사회등급', None))     else '-',
             'gov':        str(row['지배구조등급'])  if not pd.isna(row.get('지배구조등급', None))  else '-',
@@ -139,9 +140,9 @@ def parse_uploaded_files(grade_bytes, eval_bytes, adv_bytes):
             except (ValueError, TypeError):
                 pass
 
-    result['years']['2025']['q_col_map']  = q_col_map
-    result['years']['2025']['q_text_map'] = q_text_map
-    result['years']['2025']['cat_col_map'] = cat_col_map
+    result['years'][year]['q_col_map']  = q_col_map
+    result['years'][year]['q_text_map'] = q_text_map
+    result['years'][year]['cat_col_map'] = cat_col_map
 
     score_cols = {}
     for col_idx in range(len(df_raw.columns)):
@@ -192,7 +193,7 @@ def parse_uploaded_files(grade_bytes, eval_bytes, adv_bytes):
         if code not in result['companies']:
             result['companies'][code] = {'name': name, 'code': code}
 
-    result['years']['2025']['social_scores'] = social_scores
+    result['years'][year]['social_scores'] = social_scores
 
     # --- 3. 심화평가 (HTML .xls) ---
     try:
@@ -242,15 +243,13 @@ def parse_uploaded_files(grade_bytes, eval_bytes, adv_bytes):
             adv_by_company[code]['risk']          = risk
             adv_by_company[code]['avg_deduction'] = avg_deduction
 
-        result['years']['2025']['adv_eval']      = adv_by_company
-        result['years']['2025']['avg_deduction'] = avg_deduction
+        result['years'][year]['adv_eval']      = adv_by_company
+        result['years'][year]['avg_deduction'] = avg_deduction
 
     except Exception as e:
         print(f'심화평가 파싱 오류: {e}')
-        result['years']['2025']['adv_eval']      = {}
-        result['years']['2025']['avg_deduction'] = 0
-
-    return result
+        result['years'][year]['adv_eval']      = {}
+        result['years'][year]['avg_deduction'] = 0
 
 
 # ── 세션 헬퍼 ─────────────────────────────────────────────────────────────────
@@ -271,31 +270,50 @@ def index():
 
 @app.route('/api/upload', methods=['POST'])
 def api_upload():
-    keys = ['grade_file', 'eval_file', 'adv_file']
-    for key in keys:
-        if key not in request.files or request.files[key].filename == '':
-            return jsonify({'error': f'파일 누락: {key}'}), 400
-
     # 세션 수 제한 (메모리 보호)
     if len(SESSION_DATA) > 100:
         oldest = next(iter(SESSION_DATA))
         SESSION_DATA.pop(oldest, None)
 
-    try:
-        grade_bytes = request.files['grade_file'].read()
-        eval_bytes  = request.files['eval_file'].read()
-        adv_bytes   = request.files['adv_file'].read()
-        data = parse_uploaded_files(grade_bytes, eval_bytes, adv_bytes)
-    except Exception as e:
-        return jsonify({'error': f'파일 파싱 오류: {str(e)}'}), 422
+    result = {'years': {}, 'companies': {}}
+    years_parsed = []
+
+    for i in range(10):
+        year_key  = f'year_{i}'
+        grade_key = f'grade_file_{i}'
+        eval_key  = f'eval_file_{i}'
+        adv_key   = f'adv_file_{i}'
+
+        if year_key not in request.form:
+            break
+
+        grade_f = request.files.get(grade_key)
+        eval_f  = request.files.get(eval_key)
+        adv_f   = request.files.get(adv_key)
+
+        if not grade_f or not eval_f or not adv_f:
+            continue
+        if grade_f.filename == '' or eval_f.filename == '' or adv_f.filename == '':
+            continue
+
+        year = request.form[year_key]
+        try:
+            parse_year_data(year, grade_f.read(), eval_f.read(), adv_f.read(), result)
+            years_parsed.append(year)
+        except Exception as e:
+            return jsonify({'error': f'{year}년 파일 파싱 오류: {str(e)}'}), 422
+
+    if not years_parsed:
+        return jsonify({'error': '업로드된 파일이 없습니다. 연도별로 파일 3개를 모두 선택해주세요.'}), 400
 
     sid = str(uuid.uuid4())
-    SESSION_DATA[sid] = data
+    SESSION_DATA[sid] = result
     session['sid'] = sid
 
     return jsonify({
         'session_id':    sid,
-        'company_count': len(data['companies']),
+        'company_count': len(result['companies']),
+        'years':         sorted(years_parsed),
     })
 
 
@@ -305,7 +323,8 @@ def api_companies():
     if err:
         return jsonify({'error': err[0]}), err[1]
 
-    year       = '2025'
+    # 가장 최근 연도 기준으로 목록 표시
+    year        = max(data['years'].keys()) if data['years'] else '2025'
     grades_data = data['years'].get(year, {}).get('grades', {})
     social_data = data['years'].get(year, {}).get('social_scores', {})
 
@@ -393,6 +412,48 @@ def api_company(code):
     adv_data = year_data.get('adv_eval', {}).get(code, {'items': [], 'total': 0.0, 'risk': '위험 없음'})
     adv_data['avg_deduction'] = year_data.get('avg_deduction', 0)
     result['adv_eval'] = adv_data
+
+    # ── 연도별 비교 데이터 ──
+    sorted_years = sorted(data['years'].keys())
+    all_years = {}
+    for yr in sorted_years:
+        yr_data    = data['years'][yr]
+        yr_grades  = yr_data.get('grades', {}).get(code, {})
+        yr_social  = yr_data.get('social_scores', {}).get(code, {})
+        yr_q       = yr_social.get('q_scores', {})
+        yr_adv     = yr_data.get('adv_eval', {}).get(code, {})
+
+        yr_kpi = []
+        for kpi in CORE_KPI:
+            s = yr_q.get(kpi['q_num'])
+            sk = str(int(s)) if s is not None else None
+            yr_kpi.append({
+                'name':      kpi['name'],
+                'score':     s,
+                'max_score': kpi['max'],
+                'label':     kpi['answers'].get(sk, '해당없음') if sk is not None else '해당없음',
+            })
+
+        yr_cats = []
+        for cat_name, cat_info in CATEGORY_INFO.items():
+            total = sum(
+                yr_q.get(q, 0) or 0
+                for q in range(cat_info['q_start'], cat_info['q_end'] + 1)
+                if yr_q.get(q) is not None
+            )
+            yr_cats.append({'name': cat_name, 'total': total, 'color': cat_info['color']})
+
+        all_years[yr] = {
+            'grades':      yr_grades,
+            'summary':     yr_social.get('summary', {}),
+            'kpi':         yr_kpi,
+            'categories':  yr_cats,
+            'adv_total':   yr_adv.get('total', 0),
+            'adv_risk':    yr_adv.get('risk', '위험 없음'),
+        }
+
+    result['all_years']       = all_years
+    result['available_years'] = sorted_years
 
     return jsonify(result)
 

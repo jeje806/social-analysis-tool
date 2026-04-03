@@ -288,6 +288,40 @@ body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; backgrou
 .upload-logo { font-size: 28px; font-weight: 900; color: #fff; margin-bottom: 32px; letter-spacing: -1px; }
 .upload-logo span { color: #e94560; }
 
+/* ─── Multi-year blocks ─── */
+.year-blocks { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; max-height: 55vh; overflow-y: auto; padding-right: 4px; }
+.year-block { border: 1.5px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+.year-block-header {
+  background: #f8fafc; padding: 10px 14px;
+  display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #e2e8f0;
+}
+.year-select {
+  padding: 4px 8px; border: 1.5px solid #cbd5e1; border-radius: 6px;
+  font-size: 14px; font-weight: 700; color: #0f3460; background: #fff;
+  cursor: pointer; outline: none;
+}
+.year-block-label { flex: 1; font-size: 13px; font-weight: 600; color: #475569; }
+.year-remove-btn {
+  font-size: 11px; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca;
+  border-radius: 5px; padding: 3px 8px; cursor: pointer; font-weight: 600;
+}
+.year-remove-btn:hover { background: #fecaca; }
+.year-block-files { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding: 12px 14px; }
+.year-file-field label { display: block; font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 4px; }
+.year-file-input {
+  width: 100%; padding: 7px 10px; border: 2px dashed #cbd5e1;
+  border-radius: 8px; font-size: 11px; color: #475569; cursor: pointer;
+  background: #f8fafc; transition: border-color 0.2s;
+}
+.year-file-input:hover { border-color: #0f3460; }
+.add-year-btn {
+  width: 100%; padding: 10px; background: #f0f7ff; border: 2px dashed #93c5fd;
+  border-radius: 10px; font-size: 14px; font-weight: 600; color: #0f3460;
+  cursor: pointer; transition: background 0.15s; margin-bottom: 16px;
+}
+.add-year-btn:hover { background: #dbeafe; }
+.add-year-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 /* ─── Preview Button & Modal ─── */
 .upload-field-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .preview-btn {
@@ -422,32 +456,14 @@ body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; backgrou
   <div class="upload-logo">기업별 <span>ESG</span> 평가결과 분석 도구</div>
   <div class="upload-box">
     <h2>분석 파일 업로드</h2>
-    <p>아래 3개의 파일을 업로드하면 브라우저에서 바로 분석 결과를 확인할 수 있습니다.</p>
-    <div class="upload-fields">
-      <div class="upload-field">
-        <div class="upload-field-top">
-          <label style="margin-bottom:0">① ESG 등급 파일</label>
-          <button class="preview-btn" onclick="openModal('grade')">형식 미리보기 👁</button>
-        </div>
-        <div class="upload-field-desc">기업코드, 기업명, 환경/사회/지배구조/전체 등급 컬럼이 포함된 파일</div>
-        <input class="upload-file-input" type="file" id="fileGrade" accept=".xlsx,.xls">
-      </div>
-      <div class="upload-field">
-        <div class="upload-field-top">
-          <label style="margin-bottom:0">② 사회 평가결과 파일</label>
-          <button class="preview-btn" onclick="openModal('eval')">형식 미리보기 👁</button>
-        </div>
-        <div class="upload-field-desc">기업별 문항(2001~2046번)별 점수가 가로 방향으로 정리된 xlsx 파일</div>
-        <input class="upload-file-input" type="file" id="fileEval" accept=".xlsx,.xls">
-      </div>
-      <div class="upload-field">
-        <div class="upload-field-top">
-          <label style="margin-bottom:0">③ 심화평가 파일</label>
-          <button class="preview-btn" onclick="openModal('adv')">형식 미리보기 👁</button>
-        </div>
-        <div class="upload-field-desc">기업코드, 기업명, 문항, 사건, 감점 컬럼이 포함된 파일</div>
-        <input class="upload-file-input" type="file" id="fileAdv" accept=".xlsx,.xls">
-      </div>
+    <p>연도별로 파일 3개씩 업로드하세요. 최대 10개년까지 동시에 업로드할 수 있습니다.</p>
+    <div class="year-blocks" id="yearBlocks"></div>
+    <button class="add-year-btn" id="addYearBtn" onclick="addYearBlock()">＋ 연도 추가 (최대 10개년)</button>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <div style="font-size:11px;color:#94a3b8">형식 미리보기:</div>
+      <button class="preview-btn" onclick="openModal('grade')">① ESG 등급</button>
+      <button class="preview-btn" onclick="openModal('eval')">② 평가결과</button>
+      <button class="preview-btn" onclick="openModal('adv')">③ 심화평가</button>
     </div>
     <button class="upload-btn" id="uploadBtn" onclick="handleUpload()">분석 시작하기</button>
     <div class="upload-error" id="uploadError"></div>
@@ -513,6 +529,7 @@ body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; backgrou
         <button class="tab-btn" data-tab="tab-kpi">⭐ 사회 평가 핵심지표</button>
         <button class="tab-btn" data-tab="tab-cat">📋 대분류별 지표</button>
         <button class="tab-btn" data-tab="tab-adv">⚠️ 심화평가 결과</button>
+        <button class="tab-btn" data-tab="tab-trend" id="trendTabBtn" style="display:none">📈 연도별 비교</button>
       </nav>
 
       <div class="tab-content">
@@ -582,6 +599,36 @@ body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; backgrou
             <div id="advTableContainer"></div>
           </div>
         </div>
+
+        <!-- Tab 5: 연도별 비교 -->
+        <div class="tab-panel" id="tab-trend">
+          <div class="card">
+            <div class="card-title">비교 연도 선택</div>
+            <div id="yearCheckboxes" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px"></div>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-title">ESG 등급 추이</div>
+              <div class="chart-container"><canvas id="trendGradeChart"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-title">사회 평가 점수 추이</div>
+              <div class="chart-container"><canvas id="trendScoreChart"></canvas></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">대분류별 점수 추이</div>
+            <div class="chart-container" style="height:320px"><canvas id="trendCatChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">핵심지표 연도별 비교</div>
+            <div id="trendKpiTable"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">심화평가 감점 추이</div>
+            <div class="chart-container-sm"><canvas id="trendAdvChart"></canvas></div>
+          </div>
+        </div>
       </div>
     </div>
   </main>
@@ -592,11 +639,15 @@ body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; backgrou
 let allCompanies = [];
 let currentCompany = null;
 let charts = {};
+let availableYears = [];
+let selectedYears = [];
+let currentCompanyData = null;
 
 // ─── Init ───
 document.addEventListener('DOMContentLoaded', () => {
   setupTabs();
   setupSearch();
+  addYearBlock(); // 첫 번째 연도 블록 자동 추가
 });
 
 // ─── Format Preview Modal ───
@@ -610,41 +661,117 @@ function closeModalOutside(event, type) {
   if (event.target === document.getElementById('modal-' + type)) closeModal(type);
 }
 
+// ─── Year Blocks ───
+let yearBlockCount = 0;
+const MAX_YEARS = 10;
+const YEAR_OPTIONS = Array.from({length: 20}, (_, i) => 2016 + i); // 2016~2035
+
+function addYearBlock() {
+  const container = document.getElementById('yearBlocks');
+  const count = container.children.length;
+  if (count >= MAX_YEARS) return;
+
+  const idx = yearBlockCount++;
+  const usedYears = getUsedYears();
+  const defaultYear = YEAR_OPTIONS.find(y => !usedYears.includes(String(y))) || YEAR_OPTIONS[0];
+
+  const block = document.createElement('div');
+  block.className = 'year-block';
+  block.dataset.idx = idx;
+  block.innerHTML = `
+    <div class="year-block-header">
+      <span class="year-block-label">평가 연도</span>
+      <select class="year-select" id="year_${idx}">
+        ${YEAR_OPTIONS.map(y => `<option value="${y}" ${y == defaultYear ? 'selected' : ''}>${y}년</option>`).join('')}
+      </select>
+      <button class="year-remove-btn" onclick="removeYearBlock(${idx})">✕ 삭제</button>
+    </div>
+    <div class="year-block-files">
+      <div class="year-file-field">
+        <label>① ESG 등급 파일</label>
+        <input class="year-file-input" type="file" id="grade_${idx}" accept=".xlsx,.xls">
+      </div>
+      <div class="year-file-field">
+        <label>② 사회 평가결과 파일</label>
+        <input class="year-file-input" type="file" id="eval_${idx}" accept=".xlsx,.xls">
+      </div>
+      <div class="year-file-field">
+        <label>③ 심화평가 파일</label>
+        <input class="year-file-input" type="file" id="adv_${idx}" accept=".xlsx,.xls">
+      </div>
+    </div>
+  `;
+  container.appendChild(block);
+
+  const addBtn = document.getElementById('addYearBtn');
+  addBtn.disabled = container.children.length >= MAX_YEARS;
+  addBtn.textContent = `＋ 연도 추가 (${container.children.length}/${MAX_YEARS}개년)`;
+}
+
+function removeYearBlock(idx) {
+  const container = document.getElementById('yearBlocks');
+  if (container.children.length <= 1) return; // 최소 1개 유지
+  const block = container.querySelector(`[data-idx="${idx}"]`);
+  if (block) block.remove();
+  const addBtn = document.getElementById('addYearBtn');
+  addBtn.disabled = container.children.length >= MAX_YEARS;
+  addBtn.textContent = `＋ 연도 추가 (${container.children.length}/${MAX_YEARS}개년)`;
+}
+
+function getUsedYears() {
+  const container = document.getElementById('yearBlocks');
+  return Array.from(container.querySelectorAll('.year-select')).map(s => s.value);
+}
+
 // ─── Upload ───
 async function handleUpload() {
-  const gradeFile = document.getElementById('fileGrade').files[0];
-  const evalFile  = document.getElementById('fileEval').files[0];
-  const advFile   = document.getElementById('fileAdv').files[0];
-  const errDiv    = document.getElementById('uploadError');
-  const btn       = document.getElementById('uploadBtn');
-
+  const errDiv = document.getElementById('uploadError');
+  const btn    = document.getElementById('uploadBtn');
   errDiv.style.display = 'none';
-  if (!gradeFile || !evalFile || !advFile) {
-    errDiv.textContent = '3개 파일을 모두 선택해주세요.';
-    errDiv.style.display = 'block';
-    return;
+
+  const container = document.getElementById('yearBlocks');
+  const blocks = Array.from(container.querySelectorAll('.year-block'));
+
+  const form = new FormData();
+  let count = 0;
+
+  for (let i = 0; i < blocks.length; i++) {
+    const idx   = blocks[i].dataset.idx;
+    const year  = document.getElementById(`year_${idx}`)?.value;
+    const grade = document.getElementById(`grade_${idx}`)?.files[0];
+    const eval_ = document.getElementById(`eval_${idx}`)?.files[0];
+    const adv   = document.getElementById(`adv_${idx}`)?.files[0];
+
+    if (!grade || !eval_ || !adv) {
+      errDiv.textContent = `${year}년: 파일 3개를 모두 선택해주세요.`;
+      errDiv.style.display = 'block';
+      return;
+    }
+    form.append(`year_${count}`,       year);
+    form.append(`grade_file_${count}`, grade);
+    form.append(`eval_file_${count}`,  eval_);
+    form.append(`adv_file_${count}`,   adv);
+    count++;
   }
 
   btn.disabled = true;
   btn.textContent = '업로드 중...';
 
   try {
-    const form = new FormData();
-    form.append('grade_file', gradeFile);
-    form.append('eval_file',  evalFile);
-    form.append('adv_file',   advFile);
-
-    const res = await fetch('/api/upload', { method: 'POST', body: form });
+    const res  = await fetch('/api/upload', { method: 'POST', body: form });
     const json = await res.json();
+    if (!res.ok) throw new Error(json.error || '업로드 실패');
 
-    if (!res.ok) {
-      throw new Error(json.error || '업로드 실패');
-    }
+    availableYears = json.years || [];
+    selectedYears  = [...availableYears];
 
-    // Success: hide upload screen, show app
     document.getElementById('uploadScreen').style.display = 'none';
     document.querySelector('.app-header').style.display = '';
     document.querySelector('.app-body').style.display = 'flex';
+
+    // 연도별 비교 탭은 2개년 이상일 때만 표시
+    document.getElementById('trendTabBtn').style.display = availableYears.length >= 2 ? '' : 'none';
+
     await loadCompanies();
   } catch(e) {
     errDiv.textContent = '오류: ' + e.message;
@@ -744,6 +871,7 @@ async function selectCompany(code, name) {
 // ─── Render Company Data ───
 function renderCompanyData(data) {
   const { name, sector, group, grades, kpi, categories, social_summary, adv_eval } = data;
+  currentCompanyData = data;
 
   document.getElementById('panelCompanyName').textContent = name;
   document.getElementById('panelCompanyMeta').textContent = [sector, group && group !== '-' ? `(${group})` : ''].filter(Boolean).join(' ');
@@ -753,6 +881,14 @@ function renderCompanyData(data) {
   renderTab2(kpi);
   renderTab3(categories);
   renderTab4(adv_eval);
+
+  // 연도별 비교 탭 - 2개년 이상이면 렌더링
+  if (availableYears.length >= 2) {
+    document.getElementById('trendTabBtn').style.display = '';
+    renderTab5(data);
+  } else {
+    document.getElementById('trendTabBtn').style.display = 'none';
+  }
 }
 
 function gradeColor(g) {
@@ -1114,6 +1250,205 @@ function toggleDetail(i) {
   el.classList.toggle('open');
   const toggle = el.previousElementSibling;
   toggle.textContent = el.classList.contains('open') ? '상세 내용 접기 ▲' : '상세 내용 보기 ▼';
+}
+
+// ─── Tab 5: 연도별 비교 ───
+function renderTab5(data) {
+  const allYears = data.all_years || {};
+  selectedYears = [...availableYears];
+  renderYearCheckboxes(allYears);
+  renderTrendCharts(allYears);
+  renderTrendKpiTable(allYears);
+}
+
+function renderYearCheckboxes(allYears) {
+  const container = document.getElementById('yearCheckboxes');
+  container.innerHTML = availableYears.map(yr => `
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;
+      background:#f0f7ff;border:1.5px solid #93c5fd;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;color:#0f3460">
+      <input type="checkbox" value="${yr}" checked
+        onchange="onYearCheckChange()"
+        style="width:15px;height:15px;cursor:pointer">
+      ${yr}년
+    </label>
+  `).join('');
+}
+
+function onYearCheckChange() {
+  selectedYears = Array.from(document.querySelectorAll('#yearCheckboxes input:checked')).map(el => el.value);
+  if (selectedYears.length === 0) {
+    selectedYears = [availableYears[availableYears.length - 1]];
+    document.querySelectorAll('#yearCheckboxes input').forEach(el => {
+      if (el.value === selectedYears[0]) el.checked = true;
+    });
+  }
+  if (currentCompanyData) renderTrendCharts(currentCompanyData.all_years || {});
+  if (currentCompanyData) renderTrendKpiTable(currentCompanyData.all_years || {});
+}
+
+function renderTrendCharts(allYears) {
+  const yrs = availableYears.filter(y => selectedYears.includes(y));
+
+  // ── 등급 추이 차트 ──
+  destroyChart('trendGradeChart');
+  const gradeMap = {'A+':8,'A':7,'B+':6,'B':5,'C+':4,'C':3,'D+':2,'D':1,'-':0};
+  const gradeLabel = {8:'A+',7:'A',6:'B+',5:'B',4:'C+',3:'C',2:'D+',1:'D',0:'-'};
+  const gradeDatasets = [
+    { label: '환경(E)',     key: 'env',    color: '#4e79a7' },
+    { label: '사회(S)',     key: 'social', color: '#e94560' },
+    { label: '지배구조(G)', key: 'gov',    color: '#59a14f' },
+    { label: '종합(ESG)',   key: 'total',  color: '#f28e2b' },
+  ].map(d => ({
+    label: d.label,
+    data: yrs.map(y => gradeMap[allYears[y]?.grades?.[d.key]] ?? 0),
+    borderColor: d.color,
+    backgroundColor: d.color + '22',
+    pointBackgroundColor: d.color,
+    pointRadius: 5, tension: 0.3, fill: false,
+  }));
+
+  const ctx1 = document.getElementById('trendGradeChart').getContext('2d');
+  charts['trendGradeChart'] = new Chart(ctx1, {
+    type: 'line',
+    data: { labels: yrs.map(y => y + '년'), datasets: gradeDatasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        y: {
+          min: 0, max: 8, ticks: {
+            callback: v => gradeLabel[v] || '',
+            stepSize: 1,
+          }
+        }
+      }
+    }
+  });
+
+  // ── 사회 점수 추이 ──
+  destroyChart('trendScoreChart');
+  const scoreDatasets = [
+    { label: '기본평가 점수', key: '기본평가',     color: '#0f3460' },
+    { label: '감점',         key: '감점',          color: '#e94560' },
+    { label: '기본평가(환산)', key: '기본평가(환산)', color: '#59a14f' },
+  ].map(d => ({
+    label: d.label,
+    data: yrs.map(y => allYears[y]?.summary?.[d.key] ?? null),
+    borderColor: d.color,
+    backgroundColor: d.color + '22',
+    pointBackgroundColor: d.color,
+    pointRadius: 5, tension: 0.3, fill: false,
+  }));
+
+  const ctx2 = document.getElementById('trendScoreChart').getContext('2d');
+  charts['trendScoreChart'] = new Chart(ctx2, {
+    type: 'line',
+    data: { labels: yrs.map(y => y + '년'), datasets: scoreDatasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } },
+      scales: { y: { beginAtZero: false } }
+    }
+  });
+
+  // ── 대분류별 점수 추이 ──
+  destroyChart('trendCatChart');
+  const catNames = (allYears[yrs[0]]?.categories || []).map(c => c.name);
+  const catColors = (allYears[yrs[0]]?.categories || []).map(c => c.color);
+  const catDatasets = catNames.map((name, ci) => ({
+    label: name,
+    data: yrs.map(y => {
+      const cat = (allYears[y]?.categories || []).find(c => c.name === name);
+      return cat?.total ?? 0;
+    }),
+    borderColor: catColors[ci],
+    backgroundColor: catColors[ci] + '33',
+    pointBackgroundColor: catColors[ci],
+    pointRadius: 4, tension: 0.3, fill: false,
+  }));
+
+  const ctx3 = document.getElementById('trendCatChart').getContext('2d');
+  charts['trendCatChart'] = new Chart(ctx3, {
+    type: 'line',
+    data: { labels: yrs.map(y => y + '년'), datasets: catDatasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: { y: { beginAtZero: true, title: { display: true, text: '점수' } } }
+    }
+  });
+
+  // ── 심화평가 감점 추이 ──
+  destroyChart('trendAdvChart');
+  const riskColors = { '위험 없음':'#22c55e', '위험 유의':'#eab308', '위험':'#f97316', '위험 높음':'#ef4444' };
+  const ctx4 = document.getElementById('trendAdvChart').getContext('2d');
+  charts['trendAdvChart'] = new Chart(ctx4, {
+    type: 'bar',
+    data: {
+      labels: yrs.map(y => y + '년'),
+      datasets: [{
+        label: '심화평가 감점',
+        data: yrs.map(y => allYears[y]?.adv_total ?? 0),
+        backgroundColor: yrs.map(y => riskColors[allYears[y]?.adv_risk] || '#94a3b8'),
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { afterLabel: (ctx) => {
+          const yr = yrs[ctx.dataIndex];
+          return '위험수준: ' + (allYears[yr]?.adv_risk || '-');
+        }}}
+      },
+      scales: { y: { beginAtZero: true, title: { display: true, text: '감점' } } }
+    }
+  });
+}
+
+function renderTrendKpiTable(allYears) {
+  const yrs = availableYears.filter(y => selectedYears.includes(y));
+  const firstYr = allYears[yrs[0]];
+  if (!firstYr) return;
+  const kpiNames = firstYr.kpi.map(k => k.name);
+
+  const scoreClass = (score, max) => {
+    if (score === null) return 'score-na';
+    const r = score / max;
+    if (r === 0) return 'score-0';
+    if (r <= 0.3) return 'score-1';
+    if (r <= 0.7) return 'score-2';
+    return 'score-3';
+  };
+
+  const html = `
+    <div style="overflow-x:auto">
+    <table class="kpi-table">
+      <thead>
+        <tr>
+          <th style="min-width:160px">핵심지표</th>
+          ${yrs.map(y => `<th style="text-align:center">${y}년</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${kpiNames.map((name, ki) => `
+          <tr>
+            <td><strong>${name}</strong></td>
+            ${yrs.map(y => {
+              const k = (allYears[y]?.kpi || [])[ki];
+              const s = k?.score ?? null;
+              const m = k?.max_score ?? 1;
+              return `<td style="text-align:center">
+                <span class="sub-q-score ${scoreClass(s, m)}">${s !== null ? s + '/' + m : 'N/A'}</span>
+              </td>`;
+            }).join('')}
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    </div>`;
+  document.getElementById('trendKpiTable').innerHTML = html;
 }
 
 // ─── Tabs ───
