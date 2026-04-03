@@ -117,12 +117,7 @@ def parse_uploaded_files(grade_bytes, eval_bytes, adv_bytes):
         }
 
     # --- 2. 사회 평가결과 ---
-    try:
-        df_raw = pd.read_excel(io.BytesIO(eval_bytes), header=None)
-    except Exception:
-        # .xls 파일이 실제로 HTML 형식인 경우 (xlrd가 읽지 못할 때)
-        dfs = pd.read_html(io.BytesIO(eval_bytes), header=None)
-        df_raw = dfs[0]
+    df_raw = pd.read_excel(io.BytesIO(eval_bytes), header=None)
 
     q_col_map = {}
     q_text_map = {}
