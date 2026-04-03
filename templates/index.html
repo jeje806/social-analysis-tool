@@ -287,9 +287,135 @@ body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; backgrou
 .upload-error { margin-top: 12px; padding: 10px 14px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 13px; color: #dc2626; display: none; }
 .upload-logo { font-size: 28px; font-weight: 900; color: #fff; margin-bottom: 32px; letter-spacing: -1px; }
 .upload-logo span { color: #e94560; }
+
+/* ─── Preview Button & Modal ─── */
+.upload-field-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.preview-btn {
+  font-size: 11px; color: #0f3460; background: #e0f2fe;
+  border: none; border-radius: 5px; padding: 2px 8px;
+  cursor: pointer; font-weight: 600; white-space: nowrap;
+  transition: background 0.15s;
+}
+.preview-btn:hover { background: #bae6fd; }
+
+.modal-overlay {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.6); align-items: center; justify-content: center;
+  padding: 24px;
+}
+.modal-overlay.open { display: flex; }
+.modal-box {
+  background: #fff; border-radius: 16px; padding: 28px 32px;
+  max-width: 820px; width: 100%; max-height: 80vh;
+  overflow-y: auto; box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+}
+.modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.modal-header h3 { font-size: 16px; font-weight: 800; color: #1e293b; }
+.modal-close {
+  background: #f1f5f9; border: none; border-radius: 50%;
+  width: 28px; height: 28px; cursor: pointer; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  color: #64748b;
+}
+.modal-close:hover { background: #e2e8f0; }
+.modal-desc { font-size: 13px; color: #64748b; margin-bottom: 16px; line-height: 1.6; }
+.modal-table-wrap { overflow-x: auto; }
+.modal-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+  white-space: nowrap;
+}
+.modal-table th {
+  background: #1e293b; color: #fff; padding: 8px 12px;
+  text-align: left; font-weight: 600;
+}
+.modal-table td { padding: 7px 12px; border-bottom: 1px solid #f1f5f9; color: #475569; }
+.modal-table tr:nth-child(even) td { background: #f8fafc; }
+.modal-table tr:first-child td { background: #fef9c3; font-weight: 600; color: #92400e; }
+.modal-note { margin-top: 12px; font-size: 12px; color: #94a3b8; }
+.modal-note span { color: #e94560; font-weight: 700; }
 </style>
 </head>
 <body>
+
+<!-- Format Preview Modals -->
+<div class="modal-overlay" id="modal-grade" onclick="closeModalOutside(event, 'grade')">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>① ESG 등급 파일 형식</h3>
+      <button class="modal-close" onclick="closeModal('grade')">✕</button>
+    </div>
+    <div class="modal-desc">첫 번째 행이 컬럼명이며, 아래와 같은 컬럼이 포함되어야 합니다. 등급조정/조정사유 컬럼은 없어도 됩니다.</div>
+    <div class="modal-table-wrap">
+      <table class="modal-table">
+        <thead><tr>
+          <th>NO</th><th>기업코드</th><th>기업명</th><th>업종</th>
+          <th>환경등급</th><th>사회등급</th><th>지배구조등급</th><th>전체등급</th>
+          <th>E 등급조정</th><th>S 등급조정</th><th>E 조정사유</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>(예시 행)</td><td>005930</td><td>삼성전자</td><td>전기전자</td><td>A</td><td>A+</td><td>B+</td><td>A</td><td></td><td></td><td></td></tr>
+          <tr><td>2</td><td>000660</td><td>SK하이닉스</td><td>전기전자</td><td>B+</td><td>A</td><td>B</td><td>B+</td><td>▼1</td><td></td><td>환경 이슈 발생</td></tr>
+          <tr><td>3</td><td>035420</td><td>NAVER</td><td>IT서비스</td><td>B</td><td>B+</td><td>A</td><td>B+</td><td></td><td></td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="modal-note"><span>필수 컬럼:</span> 기업코드, 기업명, 환경등급, 사회등급, 지배구조등급, 전체등급</div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-eval" onclick="closeModalOutside(event, 'eval')">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>② 사회 평가결과 파일 형식</h3>
+      <button class="modal-close" onclick="closeModal('eval')">✕</button>
+    </div>
+    <div class="modal-desc">
+      총 3개의 헤더 행이 있습니다.<br>
+      · 1행: 대분류 카테고리명 (노동관행, 직장 내 안전보건 등)<br>
+      · 2행: 문항 번호 (2001, 2002 … 2046)<br>
+      · 3행: 문항 내용<br>
+      · 4행부터: 기업별 점수 데이터
+    </div>
+    <div class="modal-table-wrap">
+      <table class="modal-table">
+        <thead><tr>
+          <th>기업명</th><th>기업코드</th><th>그룹명</th><th>업종</th><th>계열사</th>
+          <th colspan="3">노동관행</th><th colspan="2">직장 내 안전보건</th>
+        </tr></thead>
+        <tbody>
+          <tr><td></td><td></td><td></td><td></td><td></td><td>2001</td><td>2002</td><td>2003</td><td>2010</td><td>2011</td></tr>
+          <tr><td></td><td></td><td></td><td></td><td></td><td>사업활동이 창출하는 사회적 가치...</td><td>다양성 관련 정책...</td><td>...</td><td>안전보건 방침...</td><td>...</td></tr>
+          <tr><td>삼성전자</td><td>005930</td><td>삼성</td><td>전기전자</td><td>-</td><td>3</td><td>5</td><td>2</td><td>7</td><td>3</td></tr>
+          <tr><td>SK하이닉스</td><td>000660</td><td>SK</td><td>전기전자</td><td>-</td><td>2</td><td>3</td><td>0</td><td>5</td><td>2</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="modal-note"><span>주의:</span> .xlsx 형식만 가능합니다. 문항번호는 2001~2046 범위여야 합니다.</div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-adv" onclick="closeModalOutside(event, 'adv')">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>③ 심화평가 파일 형식</h3>
+      <button class="modal-close" onclick="closeModal('adv')">✕</button>
+    </div>
+    <div class="modal-desc">첫 번째 행이 컬럼명이며, 감점이 발생한 기업의 사건별로 한 행씩 기록됩니다. 감점 없는 기업은 포함되지 않아도 됩니다.</div>
+    <div class="modal-table-wrap">
+      <table class="modal-table">
+        <thead><tr>
+          <th>기업코드</th><th>기업명</th><th>심화평가코드</th><th>문항</th><th>사건</th><th>과정 또는 결과</th><th>감점</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>(예시 행)</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>005930</td><td>삼성전자</td><td>S-001</td><td>노사관계 위반</td><td>노동쟁의 발생</td><td>2024년 파업으로 인한...</td><td>1.5</td></tr>
+          <tr><td>000660</td><td>SK하이닉스</td><td>S-003</td><td>산업안전 위반</td><td>중대재해 발생</td><td>작업장 사고로 인한...</td><td>3.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="modal-note"><span>필수 컬럼:</span> 기업코드, 기업명, 문항, 사건, 감점 / <span>선택 컬럼:</span> 심화평가코드, 과정 또는 결과</div>
+  </div>
+</div>
 
 <!-- Upload Screen -->
 <div id="uploadScreen">
@@ -299,17 +425,26 @@ body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; backgrou
     <p>아래 3개의 파일을 업로드하면 브라우저에서 바로 분석 결과를 확인할 수 있습니다.</p>
     <div class="upload-fields">
       <div class="upload-field">
-        <label>① ESG 등급 파일</label>
-        <div class="upload-field-desc">기업코드, 기업명, 환경등급, 사회등급, 지배구조등급, 전체등급 컬럼이 포함된 파일</div>
+        <div class="upload-field-top">
+          <label style="margin-bottom:0">① ESG 등급 파일</label>
+          <button class="preview-btn" onclick="openModal('grade')">형식 미리보기 👁</button>
+        </div>
+        <div class="upload-field-desc">기업코드, 기업명, 환경/사회/지배구조/전체 등급 컬럼이 포함된 파일</div>
         <input class="upload-file-input" type="file" id="fileGrade" accept=".xlsx,.xls">
       </div>
       <div class="upload-field">
-        <label>② 사회 평가결과 파일</label>
-        <div class="upload-field-desc">기업별 문항(2001~2046번)별 점수가 가로 방향으로 정리된 파일 (xlsx)</div>
+        <div class="upload-field-top">
+          <label style="margin-bottom:0">② 사회 평가결과 파일</label>
+          <button class="preview-btn" onclick="openModal('eval')">형식 미리보기 👁</button>
+        </div>
+        <div class="upload-field-desc">기업별 문항(2001~2046번)별 점수가 가로 방향으로 정리된 xlsx 파일</div>
         <input class="upload-file-input" type="file" id="fileEval" accept=".xlsx,.xls">
       </div>
       <div class="upload-field">
-        <label>③ 심화평가 파일</label>
+        <div class="upload-field-top">
+          <label style="margin-bottom:0">③ 심화평가 파일</label>
+          <button class="preview-btn" onclick="openModal('adv')">형식 미리보기 👁</button>
+        </div>
         <div class="upload-field-desc">기업코드, 기업명, 문항, 사건, 감점 컬럼이 포함된 파일</div>
         <input class="upload-file-input" type="file" id="fileAdv" accept=".xlsx,.xls">
       </div>
@@ -463,6 +598,17 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTabs();
   setupSearch();
 });
+
+// ─── Format Preview Modal ───
+function openModal(type) {
+  document.getElementById('modal-' + type).classList.add('open');
+}
+function closeModal(type) {
+  document.getElementById('modal-' + type).classList.remove('open');
+}
+function closeModalOutside(event, type) {
+  if (event.target === document.getElementById('modal-' + type)) closeModal(type);
+}
 
 // ─── Upload ───
 async function handleUpload() {
