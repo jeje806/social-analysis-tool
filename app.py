@@ -97,11 +97,11 @@ def parse_year_data(year, grade_bytes, eval_bytes, adv_bytes, result):
     # --- 1. ESG 등급 (벡터화) ---
     df_g = pd.read_excel(io.BytesIO(grade_bytes))
     df_g = df_g[df_g['기업코드'].notna() & df_g['기업명'].notna()].copy()
-    df_g['_code'] = df_g['기업코드'].apply(lambda x: str(int(x)))
+    df_g['xcode'] = df_g['기업코드'].apply(lambda x: str(int(x)))
 
-    for row in df_g[['_code', '기업명']].itertuples(index=False):
-        if row._code not in result['companies']:
-            result['companies'][row._code] = {'name': str(row[1]).strip(), 'code': row._code}
+    for code, name in zip(df_g['xcode'], df_g['기업명']):
+        if code not in result['companies']:
+            result['companies'][code] = {'name': str(name).strip(), 'code': code}
 
     def _col(df, name, default='-'):
         return df[name].apply(lambda x: _safe_str(x, default)) if name in df.columns else pd.Series(default, index=df.index)
@@ -109,7 +109,7 @@ def parse_year_data(year, grade_bytes, eval_bytes, adv_bytes, result):
         return df[name].apply(_safe_none) if name in df.columns else pd.Series(None, index=df.index)
 
     grades_df = pd.DataFrame({
-        'code':       df_g['_code'],
+        'code':       df_g['xcode'],
         'env':        _col(df_g, '환경등급'),
         'social':     _col(df_g, '사회등급'),
         'gov':        _col(df_g, '지배구조등급'),
@@ -173,8 +173,8 @@ def parse_year_data(year, grade_bytes, eval_bytes, adv_bytes, result):
     def to_code(x):
         try: return str(int(float(x)))
         except: return None
-    df_data['_code'] = df_data.iloc[:, 1].apply(to_code)
-    df_data = df_data[df_data['_code'].notna()]
+    df_data['xcode'] = df_data.iloc[:, 1].apply(to_code)
+    df_data = df_data[df_data['xcode'].notna()]
 
     # 문항 점수 컬럼 일괄 추출
     q_cols  = list(q_col_map.keys())
@@ -191,7 +191,7 @@ def parse_year_data(year, grade_bytes, eval_bytes, adv_bytes, result):
     sum_block  = df_data.iloc[:, sum_cidxs].copy().apply(pd.to_numeric, errors='coerce')
 
     social_scores = {}
-    codes   = df_data['_code'].tolist()
+    codes   = df_data['xcode'].tolist()
     names   = df_data.iloc[:, 0].astype(str).str.strip().tolist()
     sectors = df_data.iloc[:, 3].fillna('').astype(str).str.strip().tolist()
     groups  = df_data.iloc[:, 4].fillna('').astype(str).str.strip().tolist()
@@ -217,8 +217,8 @@ def parse_year_data(year, grade_bytes, eval_bytes, adv_bytes, result):
     try:
         df_adv = pd.read_html(io.BytesIO(adv_bytes))[0]
 
-        df_adv['_code'] = df_adv['기업코드'].apply(to_code)
-        df_adv = df_adv[df_adv['_code'].notna()]
+        df_adv['xcode'] = df_adv['기업코드'].apply(to_code)
+        df_adv = df_adv[df_adv['xcode'].notna()].copy()
         df_adv['감점'] = pd.to_numeric(df_adv['감점'], errors='coerce').fillna(0.0)
         if '과정 또는 결과' not in df_adv.columns:
             df_adv['과정 또는 결과'] = ''
@@ -226,19 +226,20 @@ def parse_year_data(year, grade_bytes, eval_bytes, adv_bytes, result):
             df_adv['심화평가코드'] = ''
 
         adv_by_company = {}
-        for row in df_adv.itertuples(index=False):
-            code = row._code
+        for code, name, adv_code, question, incident, details, ded in zip(
+            df_adv['xcode'], df_adv['기업명'], df_adv['심화평가코드'],
+            df_adv['문항'], df_adv['사건'], df_adv['과정 또는 결과'], df_adv['감점']
+        ):
             if code not in adv_by_company:
-                adv_by_company[code] = {'name': str(row[df_adv.columns.get_loc('기업명')]), 'items': [], 'total': 0.0}
-            ded = float(row[df_adv.columns.get_loc('감점')])
+                adv_by_company[code] = {'name': str(name), 'items': [], 'total': 0.0}
             adv_by_company[code]['items'].append({
-                'code':      str(row[df_adv.columns.get_loc('심화평가코드')]),
-                'question':  str(row[df_adv.columns.get_loc('문항')]),
-                'incident':  str(row[df_adv.columns.get_loc('사건')]),
-                'details':   str(row[df_adv.columns.get_loc('과정 또는 결과')]),
-                'deduction': ded,
+                'code':      str(adv_code),
+                'question':  str(question),
+                'incident':  str(incident),
+                'details':   str(details),
+                'deduction': float(ded),
             })
-            adv_by_company[code]['total'] += ded
+            adv_by_company[code]['total'] += float(ded)
 
         deduction_values = [v['total'] for v in adv_by_company.values() if v['total'] > 0]
         avg_deduction = sum(deduction_values) / len(deduction_values) if deduction_values else 0
