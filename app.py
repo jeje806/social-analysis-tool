@@ -1,14 +1,36 @@
 import io
 import os
 import uuid
+import math
+import json
 import traceback
 import warnings
 import pandas as pd
 from flask import Flask, render_template, jsonify, request, session
+from flask.json.provider import DefaultJSONProvider
 
 warnings.filterwarnings('ignore')
 
+
+def _sanitize_nan(obj):
+    """float NaN / Infinity → None (JSON null)"""
+    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
+    if isinstance(obj, dict):
+        return {k: _sanitize_nan(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_nan(v) for v in obj]
+    return obj
+
+
+class NanSafeJSONProvider(DefaultJSONProvider):
+    def dumps(self, obj, **kwargs):
+        return json.dumps(_sanitize_nan(obj), default=self.default, **kwargs)
+
+
 app = Flask(__name__)
+app.json_provider_class = NanSafeJSONProvider
+app.json = NanSafeJSONProvider(app)
 app.config['JSON_SORT_KEYS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
 app.secret_key = os.environ.get('SECRET_KEY', 'esg-analysis-dev-key-change-in-prod')
@@ -107,7 +129,8 @@ def parse_year_data(year, grade_bytes, eval_bytes, adv_bytes, result):
     def _col(df, name, default='-'):
         return df[name].apply(lambda x: _safe_str(x, default)) if name in df.columns else pd.Series(default, index=df.index)
     def _col_none(df, name):
-        return df[name].apply(_safe_none) if name in df.columns else pd.Series(None, index=df.index)
+        # fallback에 pd.Series(None) 쓰면 pandas가 float NaN으로 변환해 JSON 직렬화 실패
+        return df[name].apply(_safe_none) if name in df.columns else pd.Series([None] * len(df), index=df.index, dtype=object)
 
     grades_df = pd.DataFrame({
         'code':       df_g['xcode'],
