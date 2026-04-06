@@ -1,6 +1,7 @@
 import io
 import os
 import uuid
+import traceback
 import warnings
 import pandas as pd
 from flask import Flask, render_template, jsonify, request, session
@@ -356,11 +357,23 @@ def api_companies():
 
 @app.route('/api/company/<code>')
 def api_company(code):
+    try:
+        return _api_company_impl(code)
+    except Exception:
+        tb = traceback.format_exc()
+        print(tb)
+        return jsonify({'error': '서버 오류', 'traceback': tb}), 500
+
+
+def _api_company_impl(code):
     data, err = get_session_data()
     if err:
         return jsonify({'error': err[0]}), err[1]
 
-    year      = request.args.get('year', '2025')
+    # 업로드된 연도 중 가장 최근 연도를 기본값으로 사용
+    available = sorted(data['years'].keys())
+    default_year = available[-1] if available else '2025'
+    year      = request.args.get('year', default_year)
     year_data = data['years'].get(year, {})
     companies = data['companies']
 

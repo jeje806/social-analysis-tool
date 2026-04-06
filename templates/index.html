@@ -862,9 +862,16 @@ async function selectCompany(code, name) {
   try {
     const res = await fetch(`/api/company/${code}`);
     const data = await res.json();
+    if (!res.ok) {
+      const msg = data.error || `HTTP ${res.status}`;
+      document.getElementById('panelCompanyMeta').textContent = '데이터 로딩 실패: ' + msg;
+      console.error('api/company error:', data.traceback || msg);
+      return;
+    }
     renderCompanyData(data);
   } catch(e) {
-    document.getElementById('panelCompanyMeta').textContent = '데이터 로딩 실패';
+    document.getElementById('panelCompanyMeta').textContent = '데이터 로딩 실패: ' + e.message;
+    console.error('selectCompany exception:', e);
   }
 }
 
